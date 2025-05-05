@@ -7,6 +7,8 @@
 //My
 #include <Common/common.h>
 
+#include <TradingCatCommon/filter.h>
+
 #include "config.h"
 
 using namespace TradingCatCommon;
@@ -101,6 +103,24 @@ Config::Config(const QString& configFileName) :
 
     _debugMode = ini.value("DebugMode", "0").toBool();
     _logTableName = ini.value("LogTableName", "").toString();
+    QJsonParseError parseErr;
+    _defaultFilter = QJsonDocument::fromJson(QByteArray::fromBase64(ini.value("DefaultFilter", "").toByteArray()), &parseErr).object();
+    if (_defaultFilter.isEmpty())
+    {
+        _errorString = QString("Key value [SYSTEM]/DefaultFilter cannot be empty or parse error: %1").arg(parseErr.errorString());
+
+        return;
+    }
+    else
+    {
+        Filter filter(_defaultFilter);
+        if (filter.isError())
+        {
+            _errorString = QString("Key value [SYSTEM]/DefaultFilter has incorrect format: %1").arg(filter.errorString());
+
+            return;
+        }
+    }
 
     ini.endGroup();
 
@@ -114,6 +134,7 @@ Config::Config(const QString& configFileName) :
 
         return;
     }
+    _botName  = ini.value("Name", "").toString();
 
     ini.endGroup();
 
@@ -174,6 +195,11 @@ bool Config::debugMode() const noexcept
 const QString &Config::logTableName() const noexcept
 {
     return _logTableName;
+}
+
+const QJsonObject &Config::defaultFilter() const noexcept
+{
+    return _defaultFilter;
 }
 
 const HTTPClientConfigsList &Config::clientConfigsList() const noexcept
@@ -250,6 +276,7 @@ void Config::makeConfig(const QString& configFileName)
 
     ini.setValue("DebugMode", true);
     ini.setValue("LogTableName", QString("%1Log").arg(QCoreApplication::applicationName()));
+    ini.setValue("DefaultFilter", "{}");
 
     ini.endGroup();
 
@@ -259,6 +286,7 @@ void Config::makeConfig(const QString& configFileName)
     ini.remove("");
 
     ini.setValue("Token", "API token");
+    ini.setValue("Name", QCoreApplication::applicationName());
 
     ini.endGroup();
 

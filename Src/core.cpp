@@ -40,7 +40,7 @@ void Core::start()
 
     //Load users
     Q_ASSERT(_users == nullptr);
-    _users = new Users(_cnf->dbConnectionInfo());
+    _users = new Users(_cnf->dbConnectionInfo(), _cnf->defaultFilter());
 
     QObject::connect(_users, SIGNAL(errorOccurred(Common::EXIT_CODE, const QString&)), SLOT(errorOccurredUsers(Common::EXIT_CODE, const QString&)));
 
@@ -67,16 +67,11 @@ void Core::start()
                 SLOT(sendLogMsgUserCore(Common::TDBLoger::MSG_CODE, const QString&)), Qt::QueuedConnection);
 
         connect(userCore->userCore.get(),
-                SIGNAL(klineDetect(const TradingCatCommon::Detector::UsersIdList&,
-                                           const TradingCatCommon::StockExchangeID&,
-                                           const TradingCatCommon::KLineID&,
-                                           TradingCatCommon::Filter::FilterTypes,
-                                           const TradingCatCommon::PKLinesList&)),
-                SLOT(klineDetectUserCore(const TradingCatCommon::Detector::UsersIdList&,
-                                         const TradingCatCommon::StockExchangeID&,
-                                         const TradingCatCommon::KLineID&,
-                                         TradingCatCommon::Filter::FilterTypes,
-                                         const TradingCatCommon::PKLinesList&)), Qt::QueuedConnection);
+                SIGNAL(klineDetect(const TradingCatCommon::Detector::PKLineDetectData&, const TradingCatCommon::PKLinesList&)),
+                SLOT(klineDetectUserCore(const TradingCatCommon::Detector::PKLineDetectData&, const TradingCatCommon::PKLinesList&)), Qt::QueuedConnection);
+        connect(userCore->userCore.get(),
+                SIGNAL(orderBookDetect(const TradingCatCommon::Detector::POrderDetectData&, const TradingCatCommon::PKLinesList&)),
+                SLOT(orderBookDetectUserCore(const TradingCatCommon::Detector::POrderDetectData&, const TradingCatCommon::PKLinesList&)), Qt::QueuedConnection);
 
         connect(userCore->userCore.get(), SIGNAL(serverStatus(qint64, const QString&, const QString&, const QDateTime&, qint64)),
                 SLOT(serverStatusUserCore(qint64, const QString&, const QString&, const QDateTime&, qint64)), Qt::QueuedConnection);
@@ -390,6 +385,8 @@ void Core::messageReceivedBot(qint32 update_id, Telegram::Message message)
         }
         if (cmd == "/status")
         {
+            sendBotStatus(chatId);
+
             emit getServerStatus(userId);
 
             return;
@@ -500,76 +497,100 @@ void Core::sendLogMsgUserCore(Common::TDBLoger::MSG_CODE category, const QString
     _loger->sendLogMsg(category, QString("User core: %1").arg(msg));
 }
 
-void Core::klineDetectUserCore(const TradingCatCommon::Detector::UsersIdList &usersId,
-                               const TradingCatCommon::StockExchangeID &stockExchangeId,
-                               const TradingCatCommon::KLineID &klineId,
-                               TradingCatCommon::Filter::FilterTypes filterActivate,
-                               const TradingCatCommon::PKLinesList &klinesList)
+void Core::orderBookDetectUserCore(const TradingCatCommon::Detector::POrderDetectData& orderData, const TradingCatCommon::PKLinesList& klinesList)
 {
-    Q_ASSERT(!stockExchangeId.isEmpty());
-    Q_ASSERT(!klineId.isEmpty());
+    Q_ASSERT(!orderData->stockExchangeId.isEmpty());
+    Q_ASSERT(!orderData->symbol.isEmpty());
+
+    addDetectFiltersType(orderData->filterActivate);
 
     QStringList usersIdlist;
-    for (const auto& userId: usersId)
+    for (const auto& chatId: orderData->chatsId)
     {
-        usersIdlist.push_back(QString::number(userId));
+        usersIdlist.push_back(QString::number(chatId));
     }
 
-    _loger->sendLogMsg(TDBLoger::MSG_CODE::INFORMATION_CODE, QString("Detect kline for users: %1. StockExchangeID: %2. KLineID: %3. Filter: %4")
-        .arg(usersIdlist.join(','))
-        .arg(stockExchangeId.toString())
-        .arg(klineId.toString())
-        .arg(filterActivate.toInt()));
+    _loger->sendLogMsg(TDBLoger::MSG_CODE::INFORMATION_CODE, QString("Detect order for chats: %1. StockExchangeID: %2. KLineID: %3. Filter: %4")
+                                                                 .arg(usersIdlist.join(','))
+                                                                 .arg(orderData->stockExchangeId.toString())
+                                                                 .arg(orderData->symbol)
+                                                                 .arg(orderData->filterActivate.toInt()));
 
-    QStringList typeStr;
-    if (filterActivate.testFlag(Filter::FilterType::DELTA))
-    {
-        typeStr.push_back(tr("Delta"));
-    }
-    if (filterActivate.testFlag(Filter::FilterType::VOLUME))
-    {
-        typeStr.push_back(tr("Volume"));
-    }
-    if (filterActivate.testFlag(Filter::FilterType::CLOSE_NATR_POSITIVE))
-    {
-        typeStr.push_back(tr("NATR+"));
-    }
-    if (filterActivate.testFlag(Filter::FilterType::CLOSE_NATR_NEGATIVE))
-    {
-        typeStr.push_back(tr("NATR-"));
-    }
-    if (filterActivate.testFlag(Filter::FilterType::VOLUME_NATR))
-    {
-        typeStr.push_back(tr("NATR_Volume"));
-    }
-
-    const auto msg = tr("Detect %1: %2 %3").arg(typeStr.join(',')).arg(stockExchangeId.toString()).arg(klineId.symbol);
+    const auto msg = tr("Detect Order %1: %2 %3").arg(orderData->stockExchangeId.toString()).arg(orderData->symbol).arg(orderData->msg);
 
     const auto chartFileName = QString("%1/%2/%3_%4_%5.png")
                                    .arg(QDir::tempPath())
                                    .arg(QCoreApplication::applicationName())
-                                   .arg(stockExchangeId.toString())
-                                   .arg(klineId.symbol)
+                                   .arg(orderData->stockExchangeId.toString())
+                                   .arg(orderData->symbol)
                                    .arg(QDateTime::currentDateTime().toString(SIMPLY_DATETIME_FORMAT));
-    KLineChart chart;
-    chart.makeChart(chartFileName, stockExchangeId, klinesList);
 
-    QFile chartImg(chartFileName);
+    //    KLineChart chart;
+    //    chart.makeChart(chartFileName, klineData.stockExchangeId, klinesList);
 
-    for (const auto& userId: usersId)
+    //    QFile chartImg(chartFileName);
+
+    for (const auto& chatId: orderData->chatsId)
     {
-        const auto& user = _users->user(userId);
+        //        chartImg.open(QFile::ReadOnly);
 
-        for (const auto& chatId: user.chatsIdList())
-        {
-            chartImg.open(QFile::ReadOnly);
+        sendMessage({.chat_id = chatId,
+                     .text = msg});
+        //        sendPhoto({.chat_id = chatId,
+        //                   .photo = &chartImg,
+        //                   .caption = msg});
 
-            sendPhoto({.chat_id = chatId,
-                       .photo = &chartImg,
-                       .caption = msg});
+        //        chartImg.close();
+    }
+}
 
-            chartImg.close();
-        }
+void Core::klineDetectUserCore(const TradingCatCommon::Detector::PKLineDetectData& klineData, const TradingCatCommon::PKLinesList& klinesList)
+{
+    Q_ASSERT(!klineData->stockExchangeId.isEmpty());
+    Q_ASSERT(!klineData->klineId.isEmpty());
+
+    addDetectFiltersType(klineData->filterActivate);
+
+    QStringList usersIdlist;
+    for (const auto& chatId: klineData->chatsId)
+    {
+        usersIdlist.push_back(QString::number(chatId));
+    }
+
+    _loger->sendLogMsg(TDBLoger::MSG_CODE::INFORMATION_CODE, QString("Detect kline for chats: %1. StockExchangeID: %2. KLineID: %3. Filter: %4")
+        .arg(usersIdlist.join(','))
+        .arg(klineData->stockExchangeId.toString())
+        .arg(klineData->klineId.toString())
+        .arg(klineData->filterActivate.toInt()));
+
+    const auto msg = tr("Detect KLine %1: %2 %3")
+                         .arg(klineData->stockExchangeId.toString())
+                         .arg(klineData->klineId.symbol)
+                         .arg(klineData->msg);
+
+    const auto chartFileName = QString("%1/%2/%3_%4_%5.png")
+                                   .arg(QDir::tempPath())
+                                   .arg(QCoreApplication::applicationName())
+                                   .arg(klineData->stockExchangeId.toString())
+                                   .arg(klineData->klineId.symbol)
+                                   .arg(QDateTime::currentDateTime().toString(SIMPLY_DATETIME_FORMAT));
+
+//    KLineChart chart;
+//    chart.makeChart(chartFileName, klineData.stockExchangeId, klinesList);
+
+//    QFile chartImg(chartFileName);
+
+    for (const auto& chatId: klineData->chatsId)
+    {
+//        chartImg.open(QFile::ReadOnly);
+
+        sendMessage({.chat_id = chatId,
+                     .text = msg});
+//        sendPhoto({.chat_id = chatId,
+//                   .photo = &chartImg,
+//                   .caption = msg});
+
+//        chartImg.close();
     }
 }
 
@@ -631,14 +652,14 @@ void Core::initUser(qint64 chatId, const Telegram::Message& message)
                        message.from->username.has_value() ? message.from->username.value() : "",
                        UserTG::EUserRole::NO_CONFIRMED,
                        UserTG::EUserState::BLOCKED,
-                       Filter::defaultFilter({}));
+                       Filter(_cnf->defaultFilter()));
 
     user.addChat(chatId);
 
     _users->addNewUser(user);
 
     sendMessage({.chat_id = chatId,
-                 .text = tr("Welcome to MOEX Telegram bot. Please wait for account confirmation from the administrator")});
+                 .text = tr("Welcome to %1 Telegram bot. Please wait for account confirmation from the administrator").arg(_cnf->botName())});
 }
 
 void Core::removeUser(qint64 chatId, qint64 userId)
@@ -746,6 +767,63 @@ void Core::cancelButton(qint64 chatId)
     sendMessage({.chat_id = chatId,
                  .text = tr("Please click 'Cancel' for cancel"),
                  .reply_markup = keyboard });
+}
+
+void Core::addDetectFilterType(TradingCatCommon::Filter::FilterType filterType)
+{
+    const auto it_detectFilterType = _detectFilterType.find(filterType);
+    if (it_detectFilterType == _detectFilterType.end())
+    {
+        _detectFilterType.emplace(filterType, 1);
+    }
+    else
+    {
+        ++it_detectFilterType->second;
+    }
+}
+
+void Core::sendBotStatus(qint64 chatId)
+{    
+    auto msg = QString("Bot name: %1\nBot version: %2\nUptime: %3\n")
+                   .arg(_cnf->botName().isEmpty() ? QCoreApplication::applicationName() : _cnf->botName())
+                   .arg(QCoreApplication::applicationVersion())
+                   .arg(_startDateTime.secsTo(QDateTime::currentDateTime()));
+
+    for (const auto& filter: _detectFilterType)
+    {
+        msg += QString("%1: %2\n").arg(Filter::filterTypeToString(filter.first)).arg(filter.second);
+    }
+
+    sendMessage({.chat_id = chatId,
+                 .text = msg});
+}
+
+void Core::addDetectFiltersType(Filter::FilterTypes filterActivate)
+{
+    if (filterActivate.testFlag(Filter::FilterType::DELTA))
+    {
+        addDetectFilterType(Filter::FilterType::DELTA);
+    }
+    if (filterActivate.testFlag(Filter::FilterType::VOLUME))
+    {
+        addDetectFilterType(Filter::FilterType::VOLUME);
+    }
+    if (filterActivate.testFlag(Filter::FilterType::VOLUME_NATR))
+    {
+        addDetectFilterType(Filter::FilterType::VOLUME_NATR);
+    }
+    if (filterActivate.testFlag(Filter::FilterType::CLOSE_NATR_NEGATIVE))
+    {
+        addDetectFilterType(Filter::FilterType::CLOSE_NATR_NEGATIVE);
+    }
+    if (filterActivate.testFlag(Filter::FilterType::CLOSE_NATR_POSITIVE))
+    {
+        addDetectFilterType(Filter::FilterType::CLOSE_NATR_POSITIVE);
+    }
+    if (filterActivate.testFlag(Filter::FilterType::ORDER_QUANTITY))
+    {
+        addDetectFilterType(Filter::FilterType::ORDER_QUANTITY);
+    }
 }
 
 void Core::startUsersEdit(qint64 chatId, qint64 userId)

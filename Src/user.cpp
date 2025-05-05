@@ -201,11 +201,6 @@ void UserTG::setFilter(const TradingCatCommon::Filter& filter)
 {
     Q_ASSERT(!filter.isError());
 
-    if (_filter == filter)
-    {
-        return;
-    }
-
     _filter = filter;
 
     emit filterChenged(_telegramID, _filter);

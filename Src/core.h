@@ -55,13 +55,10 @@ private slots:
     void updateDataFromServer();
 
     void sendLogMsgUserCore(Common::TDBLoger::MSG_CODE category, const QString& msg);
-    void klineDetectUserCore(const TradingCatCommon::Detector::UsersIdList& usersId,
-                             const TradingCatCommon::StockExchangeID& stockExchangeId,
-                             const TradingCatCommon::KLineID& klineId,
-                             TradingCatCommon::Filter::FilterTypes filterActivate,
-                             const TradingCatCommon::PKLinesList& klinesList);
+    void klineDetectUserCore(const TradingCatCommon::Detector::PKLineDetectData& klineData, const TradingCatCommon::PKLinesList& klinesList);
+    void orderBookDetectUserCore(const TradingCatCommon::Detector::POrderDetectData& orderData, const TradingCatCommon::PKLinesList& klinesLista);
 
-    void serverStatusUserCore(qint64 userId, const QString&serverName, const QString& serverVersion, const QDateTime& serverTime, qint64 upTime);
+    void serverStatusUserCore(qint64 chatId, const QString&serverName, const QString& serverVersion, const QDateTime& serverTime, qint64 upTime);
 
 private:
     enum class UserEditAction: quint8
@@ -95,6 +92,11 @@ private:
     void clearButton(qint64 chatId);
     void cancelButton(qint64 chatId);
 
+    void addDetectFiltersType(TradingCatCommon::Filter::FilterTypes filterActivate);
+    void addDetectFilterType(TradingCatCommon::Filter::FilterType filterType);
+
+    void sendBotStatus(qint64 chatId);
+
 private:
     Config *_cnf = nullptr;                            //Конфигурация
     Common::TDBLoger *_loger = nullptr;
@@ -117,6 +119,9 @@ private:
 
     using  PUserCoreThread = std::unique_ptr<UserCoreThread>;
     std::list<PUserCoreThread> _userCores;
+
+    std::unordered_map<TradingCatCommon::Filter::FilterType, quint64> _detectFilterType;
+    QDateTime _startDateTime = QDateTime::currentDateTime();
 
 }; //class Core
 

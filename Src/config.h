@@ -59,9 +59,11 @@ public:
     //[SYSTEM]
     bool debugMode() const noexcept;
     const QString& logTableName() const noexcept;
+    const QJsonObject& defaultFilter() const noexcept;
 
     //[BOT]
     const QString& botToken() const { return _botToken; }
+    const QString& botName() const { return _botName; }
 
     //[STOCK_EXCHAGE]
     /*!
@@ -106,12 +108,14 @@ private:
     //[SYSTEM]
     bool _debugMode = true;                     ///< Флаг отладочного вывода логов
     QString _logTableName;                      ///<  Имя таблиы логов.
+    QJsonObject _defaultFilter;                     ///< Фильр по умолчанию
 
     //[DATABASE]
     Common::DBConnectionInfo _dbConnectionInfo; ///< Параметры подключения к БД
 
     //[BOT]
     QString _botToken;                          ///< Токен телеграмм бота
+    QString _botName;                           ///< Токен телеграмм бота
 
     //[CLIENT]
     TradingCatCommon::HTTPClientConfigsList _clientConfigsList;  ///<  Список серверов бирж

@@ -10,6 +10,7 @@
 #include <QSqlDatabase>
 #include <QDateTime>
 #include <QUuid>
+#include <QJsonObject>
 
 //My
 #include <Common/common.h>
@@ -26,7 +27,7 @@ public:
     using UsersIDList = std::unordered_set<qint64>;
 
 public:
-    explicit Users(const Common::DBConnectionInfo& dbConnectionInfo, QObject* parent = nullptr);
+    explicit Users(const Common::DBConnectionInfo& dbConnectionInfo, const QJsonObject& defaultFilter, QObject* parent = nullptr);
     ~Users();
 
     bool loadFromDB();
@@ -72,6 +73,8 @@ private:
     QSqlDatabase _db;
 
     std::unordered_map<qint64, std::unique_ptr<UserTG>> _users;
+
+    QJsonObject _defaultFilter;
 
 };
 

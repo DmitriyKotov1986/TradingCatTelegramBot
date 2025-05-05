@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE QtCreatorProject>
-<!-- Written by QtCreator 12.0.1, 2025-01-19T21:08:08. -->
+<!-- Written by QtCreator 12.0.1, 2025-02-13T13:32:35. -->
 <qtcreator>
  <data>
   <variable>EnvironmentId</variable>
@@ -209,7 +209,7 @@
     <value type="QString" key="ProjectExplorer.ProjectConfiguration.Id">Qt4ProjectManager.Qt4RunConfiguration:/home/kotovd/QtWorkSpace/TradingCat/TelegramBot/TelegramBot.pro</value>
     <value type="QString" key="ProjectExplorer.RunConfiguration.BuildKey">/home/kotovd/QtWorkSpace/TradingCat/TelegramBot/TelegramBot.pro</value>
     <value type="bool" key="ProjectExplorer.RunConfiguration.Customized">true</value>
-    <value type="QString" key="RunConfiguration.Arguments">--config MexcTelegramBot.ini</value>
+    <value type="QString" key="RunConfiguration.Arguments">--config MoexTelegramBot.ini</value>
     <value type="bool" key="RunConfiguration.UseCppDebuggerAuto">true</value>
     <value type="bool" key="RunConfiguration.UseLibrarySearchPath">true</value>
     <value type="bool" key="RunConfiguration.UseQmlDebuggerAuto">true</value>

@@ -6,6 +6,7 @@
 
 //My
 #include <Common/sql.h>
+#include <Common/parser.h>
 
 #include "users.h"
 
@@ -16,9 +17,10 @@ using namespace Common;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// class Users
-Users::Users(const Common::DBConnectionInfo &dbConnectionInfo, QObject* parent /* = nullptr */)
+Users::Users(const Common::DBConnectionInfo &dbConnectionInfo, const QJsonObject& defaultFilter, QObject* parent /* = nullptr */)
     : QObject{parent}
     , _dbConnectionInfo(dbConnectionInfo)
+    , _defaultFilter(defaultFilter)
 {
 }
 
@@ -93,9 +95,17 @@ bool Users::loadFromDB()
             }
 
             const auto filterJson = query.value("Filter").toString().toUtf8();
-            const auto filterJsonDoc = QJsonDocument::fromJson(QByteArray::fromBase64(filterJson));
+            QJsonObject filterJsonDoc;
+            try
+            {
+                filterJsonDoc = JSONParseToMap(QByteArray::fromBase64(filterJson));
+            }
+            catch (const ParseException& err)
+            {
+                throw LoadException(QString("User filter settings is incorrect: %1. Record: %2").arg(err.what()).arg(recordId));
+            }
 
-            Filter filter = filterJsonDoc.isEmpty() ? Filter::defaultFilter({}) : Filter(filterJsonDoc.array());
+            Filter filter = filterJsonDoc.isEmpty() ? Filter(_defaultFilter) : Filter(filterJsonDoc);
             if (filter.isError())
             {
                 throw LoadException(QString("User filter contain error in [Users]/Filter. %1. Record: %2").arg(filter.errorString()).arg(recordId));
